@@ -26,19 +26,32 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- API Keys ---
 		new Setting(containerEl).setName("API Keys").setHeading();
-		this.createWhisperApiKeySetting();
+		if (!this.plugin.settings.useLocalTranscription) {
+			this.createWhisperApiKeySetting();
+		}
 		this.createOpenAiApiKeySetting();
 		this.createAnthropicApiKeySetting();
 
 		// --- Transcription ---
 		new Setting(containerEl).setName("Transcription").setHeading();
-		this.createApiUrlSetting();
-		this.createModelSetting();
-		this.createLanguageSetting();
-		this.createPromptSetting();
-		this.createSendCursorContextSetting();
-		this.createTemperatureSetting();
-		this.createResponseFormatSetting();
+		this.createLocalTranscriptionToggleSetting();
+
+		if (this.plugin.settings.useLocalTranscription) {
+			// Local mode
+			this.createLocalWhisperPathSetting();
+			this.createLocalModelSetting();
+			this.createLocalLanguageSetting();
+			this.createTemperatureSetting();
+		} else {
+			// API mode
+			this.createApiUrlSetting();
+			this.createModelSetting();
+			this.createLanguageSetting();
+			this.createPromptSetting();
+			this.createSendCursorContextSetting();
+			this.createTemperatureSetting();
+			this.createResponseFormatSetting();
+		}
 
 		// --- Recording ---
 		new Setting(containerEl).setName("Recording").setHeading();
@@ -59,7 +72,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createNoteTemplateSetting();
 		}
 
-		// --- Post-Processing ---
+		// --- Post-processing ---
 		new Setting(containerEl).setName("Post-processing").setHeading();
 		this.createPostProcessingToggleSetting();
 		if (this.plugin.settings.postProcessing) {
@@ -71,15 +84,6 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createAutoGenerateTitleSetting();
 			this.createTitleGenerationPromptSetting();
 			this.createKeepOriginalTranscriptionSetting();
-		}
-
-		// --- Local Transcription ---
-		new Setting(containerEl).setName("Local Transcription").setHeading();
-		this.createLocalTranscriptionToggleSetting();
-		if (this.plugin.settings.useLocalTranscription) {
-			this.createLocalWhisperPathSetting();
-			this.createLocalModelSetting();
-			this.createLocalLanguageSetting();
 		}
 
 		// --- Advanced ---
@@ -640,9 +644,9 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 	private createLocalTranscriptionToggleSetting(): void {
 		new Setting(this.containerEl)
-			.setName("Use local transcription")
+			.setName("Use local model (mlx_whisper)")
 			.setDesc(
-				"API 대신 로컬에 설치된 mlx_whisper를 사용합니다. 파일 크기 제한 없이 완전히 오프라인으로 동작합니다. (macOS + Apple Silicon 전용)"
+				"켜면 로컬 mlx_whisper를 사용합니다 (오프라인, 파일 크기 제한 없음). 끄면 API를 사용합니다. macOS + Apple Silicon 전용."
 			)
 			.addToggle((toggle) => {
 				toggle
