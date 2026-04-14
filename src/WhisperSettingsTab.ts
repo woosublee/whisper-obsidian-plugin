@@ -6,6 +6,7 @@ import {
 	PROVIDER_URLS,
 	PROVIDER_DEFAULT_MODELS,
 } from "./SettingsManager";
+import { LOCAL_MODELS } from "./LocalTranscriber";
 
 export class WhisperSettingsTab extends PluginSettingTab {
 	private plugin: Whisper;
@@ -50,6 +51,7 @@ export class WhisperSettingsTab extends PluginSettingTab {
 
 		// --- Output ---
 		new Setting(containerEl).setName("Output").setHeading();
+		this.createAutoPasteAtCursorSetting();
 		this.createNewFileToggleSetting();
 		if (this.plugin.settings.createNoteFile) {
 			this.createNewFilePathSetting();
@@ -69,6 +71,15 @@ export class WhisperSettingsTab extends PluginSettingTab {
 			this.createAutoGenerateTitleSetting();
 			this.createTitleGenerationPromptSetting();
 			this.createKeepOriginalTranscriptionSetting();
+		}
+
+		// --- Local Transcription ---
+		new Setting(containerEl).setName("Local Transcription").setHeading();
+		this.createLocalTranscriptionToggleSetting();
+		if (this.plugin.settings.useLocalTranscription) {
+			this.createLocalWhisperPathSetting();
+			this.createLocalModelSetting();
+			this.createLocalLanguageSetting();
 		}
 
 		// --- Advanced ---
@@ -338,6 +349,24 @@ export class WhisperSettingsTab extends PluginSettingTab {
 		);
 	}
 
+	private createAutoPasteAtCursorSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Auto-paste at cursor")
+			.setDesc(
+				"변환 완료 후 현재 커서 위치에 자동으로 텍스트를 붙여넣습니다. 끄면 노트 파일로만 저장됩니다."
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.autoPasteAtCursor)
+					.onChange(async (value) => {
+						this.plugin.settings.autoPasteAtCursor = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					});
+			});
+	}
+
 	private createNewFileToggleSetting(): void {
 		new Setting(this.containerEl)
 			.setName("Create note file")
@@ -602,6 +631,100 @@ export class WhisperSettingsTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.debugMode)
 					.onChange(async (value) => {
 						this.plugin.settings.debugMode = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					});
+			});
+	}
+
+	private createLocalTranscriptionToggleSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Use local transcription")
+			.setDesc(
+				"API 대신 로컬에 설치된 mlx_whisper를 사용합니다. 파일 크기 제한 없이 완전히 오프라인으로 동작합니다. (macOS + Apple Silicon 전용)"
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.useLocalTranscription)
+					.onChange(async (value) => {
+						this.plugin.settings.useLocalTranscription = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+						this.display();
+					});
+			});
+	}
+
+	private createLocalWhisperPathSetting(): void {
+		new Setting(this.containerEl)
+			.setName("mlx_whisper path")
+			.setDesc(
+				"mlx_whisper 바이너리 경로. pipx로 설치한 경우 기본값(~/.local/bin/mlx_whisper)을 그대로 사용하세요."
+			)
+			.addText((text) => {
+				text
+					.setPlaceholder("~/.local/bin/mlx_whisper")
+					.setValue(this.plugin.settings.localWhisperPath)
+					.onChange(async (value) => {
+						this.plugin.settings.localWhisperPath = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					});
+			});
+	}
+
+	private createLocalModelSetting(): void {
+		new Setting(this.containerEl)
+			.setName("Local model")
+			.setDesc(
+				"사용할 mlx-whisper 모델. 첫 사용 시 Hugging Face에서 자동 다운로드됩니다."
+			)
+			.addDropdown((dropdown) => {
+				for (const model of LOCAL_MODELS) {
+					dropdown.addOption(
+						model.id,
+						`${model.name} — ${model.description}`
+					);
+				}
+				dropdown
+					.setValue(this.plugin.settings.localModel)
+					.onChange(async (value) => {
+						this.plugin.settings.localModel = value;
+						await this.settingsManager.saveSettings(
+							this.plugin.settings
+						);
+					});
+			});
+	}
+
+	private createLocalLanguageSetting(): void {
+		const languages: Record<string, string> = {
+			auto: "자동 감지",
+			ko: "한국어",
+			en: "English",
+			ja: "日本語",
+			zh: "中文",
+			es: "Español",
+			fr: "Français",
+			de: "Deutsch",
+		};
+
+		new Setting(this.containerEl)
+			.setName("Local transcription language")
+			.setDesc("언어를 지정하면 정확도가 높아집니다.")
+			.addDropdown((dropdown) => {
+				for (const [code, label] of Object.entries(languages)) {
+					dropdown.addOption(code, label);
+				}
+				dropdown
+					.setValue(
+						this.plugin.settings.localLanguage || "auto"
+					)
+					.onChange(async (value) => {
+						this.plugin.settings.localLanguage = value;
 						await this.settingsManager.saveSettings(
 							this.plugin.settings
 						);

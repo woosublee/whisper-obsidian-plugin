@@ -223,7 +223,7 @@ export default class Whisper extends Plugin {
 	// --- URI Handler ---
 
 	registerUriHandler() {
-		this.registerObsidianProtocolHandler("whisper", async (params) => {
+		this.registerObsidianProtocolHandler("whisper-mlx", async (params) => {
 			const command = params.command;
 			if (!command) {
 				this.openControls();

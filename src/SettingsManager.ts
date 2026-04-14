@@ -46,6 +46,13 @@ export interface WhisperSettings {
 	noteSavePath: string;
 	noteFilenameTemplate: string;
 	noteTemplate: string;
+	// Local transcription
+	useLocalTranscription: boolean;
+	localWhisperPath: string;
+	localModel: string;
+	localLanguage: string;
+	// Paste behavior
+	autoPasteAtCursor: boolean;
 	// Advanced
 	debugMode: boolean;
 }
@@ -87,6 +94,11 @@ export const DEFAULT_WHISPER: WhisperSettings = {
 	noteSavePath: "",
 	noteFilenameTemplate: "{{datetime}}",
 	noteTemplate: "![[{{audioFile}}]]\n{{transcription}}",
+	useLocalTranscription: false,
+	localWhisperPath: "~/.local/bin/mlx_whisper",
+	localModel: "mlx-community/whisper-large-v3-turbo",
+	localLanguage: "auto",
+	autoPasteAtCursor: true,
 	debugMode: false,
 };
 

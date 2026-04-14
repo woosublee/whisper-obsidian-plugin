@@ -1,4 +1,5 @@
 import axios from "axios";
+import * as os from "os";
 import Whisper from "main";
 import { Notice, MarkdownView } from "obsidian";
 import {
@@ -8,6 +9,7 @@ import {
 	resolveTemplate,
 } from "./utils";
 import { PostProcessor } from "./PostProcessor";
+import { transcribeLocally } from "./LocalTranscriber";
 
 export class AudioHandler {
 	private plugin: Whisper;
@@ -59,7 +61,7 @@ export class AudioHandler {
 		const isDefaultApi =
 			this.plugin.settings.apiUrl ===
 			"https://api.openai.com/v1/audio/transcriptions";
-		if (isDefaultApi && !this.plugin.settings.apiKey) {
+		if (!this.plugin.settings.useLocalTranscription && isDefaultApi && !this.plugin.settings.apiKey) {
 			new Notice("✘ Add your API key in Whisper settings");
 			return;
 		}
@@ -129,22 +131,40 @@ export class AudioHandler {
 			if (this.plugin.settings.debugMode) {
 				new Notice("Transcribing...");
 			}
-			const response = await axios.post(
-				this.plugin.settings.apiUrl,
-				formData,
-				{
-					headers: {
-						"Content-Type": "multipart/form-data",
-						...(this.plugin.settings.apiKey
-							? {
-									Authorization: `Bearer ${this.plugin.settings.apiKey}`,
-							  }
-							: {}),
-					},
-				}
-			);
 
-			const originalText: string = response.data.text;
+			let originalText: string;
+
+			if (this.plugin.settings.useLocalTranscription) {
+				// 로컬 mlx_whisper 실행
+				const whisperBin = this.plugin.settings.localWhisperPath.replace(
+					/^~/,
+					os.homedir()
+				);
+				originalText = await transcribeLocally(
+					blob,
+					fileName,
+					whisperBin,
+					this.plugin.settings.localModel,
+					this.plugin.settings.localLanguage,
+					this.plugin.settings.temperature
+				);
+			} else {
+				const response = await axios.post(
+					this.plugin.settings.apiUrl,
+					formData,
+					{
+						headers: {
+							"Content-Type": "multipart/form-data",
+							...(this.plugin.settings.apiKey
+								? {
+										Authorization: `Bearer ${this.plugin.settings.apiKey}`,
+								  }
+								: {}),
+						},
+					}
+				);
+				originalText = response.data.text;
+			}
 			let finalText = originalText;
 
 			// Post-process with LLM if enabled
@@ -254,11 +274,13 @@ export class AudioHandler {
 				);
 			}
 
-			// Paste at cursor if there's an active editor
+			// Paste at cursor if enabled and there's an active editor
 			const editor =
-				this.plugin.app.workspace.getActiveViewOfType(
-					MarkdownView
-				)?.editor;
+				this.plugin.settings.autoPasteAtCursor
+					? this.plugin.app.workspace.getActiveViewOfType(
+							MarkdownView
+					  )?.editor
+					: null;
 			if (editor) {
 				const cursorPosition = editor.getCursor();
 				editor.replaceRange(outputText, cursorPosition);
