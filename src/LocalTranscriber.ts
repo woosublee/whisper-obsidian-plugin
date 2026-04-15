@@ -61,7 +61,7 @@ export async function transcribeLocally(
 			"--model",
 			model,
 			"--output-format",
-			"txt",
+			"json",
 			"--output-dir",
 			tmpOutput,
 			"--condition-on-previous-text",
@@ -87,8 +87,15 @@ export async function transcribeLocally(
 		await runProcess(whisperBin, args, env);
 
 		const baseName = path.basename(tmpInput, ext);
-		const outputFile = path.join(tmpOutput, `${baseName}.txt`);
-		const text = fs.readFileSync(outputFile, "utf-8");
+		const outputFile = path.join(tmpOutput, `${baseName}.json`);
+		const raw = fs.readFileSync(outputFile, "utf-8");
+		const json = JSON.parse(raw);
+		const text: string = json.text ?? "";
+
+		if (isHallucination(text, json)) {
+			return "";
+		}
+
 		return text.trim();
 	} finally {
 		try {
@@ -98,6 +105,35 @@ export async function transcribeLocally(
 			fs.rmSync(tmpOutput, { recursive: true, force: true });
 		} catch {}
 	}
+}
+
+// Whisper-large-v3 hallucinates common short phrases on silence/background
+// noise. Drop them when whisper itself reports a high no_speech_prob.
+// Thresholds tuned on ~500 samples (from freeflow project).
+const HALLUCINATION_PHRASES = [
+	"thank you",
+	"thank you very much",
+	"thank you so much",
+	"you",
+];
+const HALLUCINATION_NO_SPEECH_THRESHOLD = 0.1;
+
+function isHallucination(text: string, json: Record<string, unknown>): boolean {
+	const normalized = text
+		.toLowerCase()
+		.replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, "");
+
+	if (!HALLUCINATION_PHRASES.includes(normalized)) {
+		return false;
+	}
+
+	const segments = json.segments as Array<Record<string, unknown>> | undefined;
+	const noSpeechProb = segments?.[0]?.["no_speech_prob"] as number | undefined;
+	if (noSpeechProb === undefined) {
+		return false;
+	}
+
+	return noSpeechProb >= HALLUCINATION_NO_SPEECH_THRESHOLD;
 }
 
 function runProcess(
